@@ -1,1 +1,1239 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pembelajaran Bahasa Arab - Platform Interaktif</title>
+  <link rel="stylesheet" href="/src/styles/main.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🕌</text></svg>">
+</head>
+<body>
+  <!-- Login View -->
+  <div id="login-view" class="login-screen">
+    <div class="login-container">
+      <div class="login-title">
+        🕌 Pembelajaran Bahasa Arab
+      </div>
+      <div class="login-options">
+        <button type="button" class="login-btn student" id="student-login-btn">
+          <span>👨‍🎓</span>
+          <span>Masuk sebagai Siswa</span>
+        </button>
+        <button type="button" class="login-btn" id="teacher-login-btn">
+          <span>👨‍🏫</span>
+          <span>Masuk sebagai Guru</span>
+        </button>
+      </div>
+      
+      <form class="student-login-form" id="student-login-form">
+        <div id="student-login-error"></div>
+        <div class="form-group">
+          <label class="form-label" for="student-name-input">Nama Lengkap</label>
+          <input type="text" id="student-name-input" class="form-input" 
+                 placeholder="Masukkan nama lengkap Anda" required minlength="3">
+        </div>
+        <button type="submit" class="submit-btn">Masuk</button>
+        <div class="student-id-display" id="student-id-preview" style="display: none;">
+          <div class="student-id-label">
+            ID Siswa Anda:
+          </div>
+          <div class="student-id-value" id="student-id-preview-value"></div>
+          <div style="font-size: 12px; color: #718096; margin-top: 8px;">
+            Simpan ID ini untuk login selanjutnya!
+          </div>
+        </div>
+      </form>
+      
+      <form class="teacher-login-form" id="teacher-login-form">
+        <div id="teacher-login-error"></div>
+        <div class="form-group">
+          <label class="form-label" for="password-input">Password Guru</label>
+          <input type="password" id="password-input" class="form-input" 
+                 placeholder="Masukkan password (default: guru123)" required>
+        </div>
+        <button type="submit" class="submit-btn">Masuk</button>
+      </form>
+    </div>
+  </div>
 
+  <!-- Main App View -->
+  <div id="app-view" class="container" style="display: none;">
+    <header class="header">
+      <div class="user-badge" id="user-badge">
+        <span id="user-icon">👨‍🎓</span>
+        <span id="user-role">Siswa</span>
+        <button class="logout-btn" id="logout-btn">Keluar</button>
+      </div>
+      <h1>تعلم اللغة العربية</h1>
+      <p>Pembelajaran Bahasa Arab - Kelas X Madrasah Aliyah</p>
+    </header>
+
+    <main id="main-menu">
+      <!-- Students List (Teacher Only) -->
+      <div id="students-list-view" class="students-list-section" style="display: none;">
+        <div class="students-header">
+          <h2 class="students-title">📋 Daftar Siswa Terdaftar</h2>
+          <div class="student-count" id="student-count-badge">
+            0 Siswa
+          </div>
+        </div>
+        <div class="students-grid" id="students-grid"></div>
+      </div>
+
+      <!-- Semester Navigation -->
+      <div class="semester-tabs">
+        <button class="semester-tab active" data-semester="1">Semester 1</button>
+        <button class="semester-tab" data-semester="2">Semester 2</button>
+      </div>
+
+      <!-- Chapters Grid -->
+      <div class="chapters-grid" id="chapters-container">
+        <!-- Chapters will be loaded here -->
+      </div>
+    </main>
+
+    <!-- Submenu View -->
+    <div id="submenu-view" class="submenu-container">
+      <div class="submenu-header">
+        <button class="back-btn" id="back-to-chapters">← Kembali</button>
+        <h2 class="submenu-title" id="submenu-chapter-title"></h2>
+      </div>
+      <div class="submenu-grid" id="submenu-items"></div>
+    </div>
+
+    <!-- Content View -->
+    <div id="content-view" class="content-area">
+      <div class="content-header">
+        <button class="back-btn" id="back-to-submenu">← Kembali</button>
+        <h2 class="submenu-title" id="content-section-title"></h2>
+      </div>
+      <div id="content-body">
+        <!-- Dynamic content will be loaded here -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading Spinner -->
+  <div id="loading-spinner" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000;">
+    <div style="background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); text-align: center;">
+      <div style="font-size: 48px; margin-bottom: 10px;">⏳</div>
+      <div>Memuat...</div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { LoginManager } from '/src/components/LoginManager.js';
+    import { ContentManager } from '/src/components/ContentManager.js';
+    import { QuizManager } from '/src/components/QuizManager.js';
+
+    // Application State
+    let currentState = {
+      semester: 1,
+      currentChapter: null,
+      currentSection: null,
+      currentFileIndex: 0
+    };
+
+    // DOM Elements
+    const elements = {
+      loginView: document.getElementById('login-view'),
+      appView: document.getElementById('app-view'),
+      studentLoginBtn: document.getElementById('student-login-btn'),
+      teacherLoginBtn: document.getElementById('teacher-login-btn'),
+      studentLoginForm: document.getElementById('student-login-form'),
+      teacherLoginForm: document.getElementById('teacher-login-form'),
+      logoutBtn: document.getElementById('logout-btn'),
+      userBadge: document.getElementById('user-badge'),
+      userIcon: document.getElementById('user-icon'),
+      userRole: document.getElementById('user-role'),
+      studentsListView: document.getElementById('students-list-view'),
+      studentCountBadge: document.getElementById('student-count-badge'),
+      studentsGrid: document.getElementById('students-grid'),
+      chaptersContainer: document.getElementById('chapters-container'),
+      submenuView: document.getElementById('submenu-view'),
+      submenuChapterTitle: document.getElementById('submenu-chapter-title'),
+      submenuItems: document.getElementById('submenu-items'),
+      contentView: document.getElementById('content-view'),
+      contentSectionTitle: document.getElementById('content-section-title'),
+      contentBody: document.getElementById('content-body'),
+      backToChapters: document.getElementById('back-to-chapters'),
+      backToSubmenu: document.getElementById('back-to-submenu'),
+      loadingSpinner: document.getElementById('loading-spinner')
+    };
+
+    // Initialize Application
+    class ArabicLearningApp {
+      constructor() {
+        this.init();
+      }
+
+      init() {
+        this.setupEventListeners();
+        this.checkExistingSession();
+      }
+
+      setupEventListeners() {
+        // Login buttons
+        elements.studentLoginBtn.addEventListener('click', () => this.showStudentLogin());
+        elements.teacherLoginBtn.addEventListener('click', () => this.showTeacherLogin());
+        
+        // Login forms
+        elements.studentLoginForm.addEventListener('submit', (e) => this.handleStudentLogin(e));
+        elements.teacherLoginForm.addEventListener('submit', (e) => this.handleTeacherLogin(e));
+        
+        // Logout
+        elements.logoutBtn.addEventListener('click', () => this.handleLogout());
+        
+        // Navigation
+        elements.backToChapters.addEventListener('click', () => this.showMainMenu());
+        elements.backToSubmenu.addEventListener('click', () => this.showSubmenu());
+        
+        // Semester tabs
+        document.querySelectorAll('.semester-tab').forEach(tab => {
+          tab.addEventListener('click', () => {
+            const semester = parseInt(tab.dataset.semester);
+            this.changeSemester(semester);
+          });
+        });
+
+        // Student name input for ID preview
+        const studentNameInput = document.getElementById('student-name-input');
+        if (studentNameInput) {
+          studentNameInput.addEventListener('input', (e) => {
+            this.previewStudentId(e.target.value);
+          });
+        }
+      }
+
+      checkExistingSession() {
+        if (LoginManager.isLoggedIn()) {
+          this.showApp();
+        }
+      }
+
+      async showStudentLogin() {
+        elements.studentLoginForm.classList.add('active');
+        elements.teacherLoginForm.classList.remove('active');
+        document.getElementById('password-input').value = '';
+        this.clearError('teacher-login-error');
+      }
+
+      async showTeacherLogin() {
+        elements.teacherLoginForm.classList.add('active');
+        elements.studentLoginForm.classList.remove('active');
+        document.getElementById('student-name-input').value = '';
+        document.getElementById('student-id-preview').style.display = 'none';
+        this.clearError('student-login-error');
+      }
+
+      previewStudentId(name) {
+        const preview = document.getElementById('student-id-preview');
+        const previewValue = document.getElementById('student-id-preview-value');
+        
+        if (name && name.length >= 3) {
+          const studentId = LoginManager.generateStudentId(name);
+          previewValue.textContent = studentId;
+          preview.style.display = 'block';
+        } else {
+          preview.style.display = 'none';
+        }
+      }
+
+      async handleStudentLogin(e) {
+        e.preventDefault();
+        const name = document.getElementById('student-name-input').value.trim();
+        
+        try {
+          this.showLoading();
+          const result = await LoginManager.loginStudent(name);
+          
+          if (result.success) {
+            this.showNotification(`Selamat datang ${name}!${result.isNew ? ' ID Anda: ' + result.studentId : ''}`, 'success');
+            this.showApp();
+          }
+        } catch (error) {
+          this.showError('student-login-error', error.message);
+        } finally {
+          this.hideLoading();
+        }
+      }
+
+      async handleTeacherLogin(e) {
+        e.preventDefault();
+        const password = document.getElementById('password-input').value;
+        
+        try {
+          LoginManager.loginTeacher(password);
+          this.showApp();
+        } catch (error) {
+          this.showError('teacher-login-error', error.message);
+        }
+      }
+
+      handleLogout() {
+        LoginManager.logout();
+        elements.loginView.style.display = 'flex';
+        elements.appView.style.display = 'none';
+        this.showMainMenu();
+        this.clearForms();
+      }
+
+      clearForms() {
+        document.getElementById('student-name-input').value = '';
+        document.getElementById('password-input').value = '';
+        document.getElementById('student-id-preview').style.display = 'none';
+        elements.studentLoginForm.classList.remove('active');
+        elements.teacherLoginForm.classList.remove('active');
+        this.clearAllErrors();
+      }
+
+      async showApp() {
+        elements.loginView.style.display = 'none';
+        elements.appView.style.display = 'flex';
+        
+        const user = LoginManager.getCurrentUser();
+        this.updateUserInterface(user);
+        
+        if (user.role === LoginManager.USER_ROLES.TEACHER) {
+          await this.loadStudentsList();
+        }
+        
+        this.renderChapters();
+      }
+
+      updateUserInterface(user) {
+        if (user.role === LoginManager.USER_ROLES.TEACHER) {
+          elements.userBadge.classList.add('teacher');
+          elements.userIcon.textContent = '👨‍🏫';
+          elements.userRole.textContent = 'Guru';
+          elements.studentsListView.style.display = 'block';
+        } else {
+          elements.userBadge.classList.remove('teacher');
+          elements.userIcon.textContent = '👨‍🎓';
+          elements.userRole.textContent = `${user.studentName} (${user.studentId})`;
+          elements.studentsListView.style.display = 'none';
+        }
+      }
+
+      async loadStudentsList() {
+        try {
+          const students = await LoginManager.getStudentsList();
+          this.renderStudentsList(students);
+        } catch (error) {
+          console.error('Failed to load students:', error);
+        }
+      }
+
+      renderStudentsList(students) {
+        elements.studentCountBadge.textContent = `${students.length} Siswa`;
+        
+        if (students.length === 0) {
+          elements.studentsGrid.innerHTML = `
+            <div class="empty-state" style="grid-column: 1 / -1;">
+              <div class="empty-icon">👥</div>
+              <div class="empty-text">Belum ada siswa yang terdaftar</div>
+            </div>
+          `;
+          return;
+        }
+
+        elements.studentsGrid.innerHTML = students
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .map(student => `
+            <div class="student-card">
+              <div class="student-card-name">👨‍🎓 ${student.name}</div>
+              <div class="student-card-id">ID: ${student.id}</div>
+              <div class="student-card-date" style="font-size: 11px; color: #a0aec0; margin-top: 5px;">
+                Bergabung: ${new Date(student.created_at).toLocaleDateString('id-ID')}
+              </div>
+            </div>
+          `).join('');
+      }
+
+      changeSemester(semester) {
+        currentState.semester = semester;
+        document.querySelectorAll('.semester-tab').forEach(t => t.classList.remove('active'));
+        document.querySelector(`[data-semester="${semester}"]`).classList.add('active');
+        this.renderChapters();
+      }
+
+      renderChapters() {
+        const filteredChapters = ContentManager.CHAPTERS.filter(
+          ch => ch.semester === currentState.semester
+        );
+        
+        elements.chaptersContainer.innerHTML = filteredChapters.map(chapter => `
+          <div class="chapter-card" data-chapter="${chapter.id}">
+            <div class="chapter-icon">${chapter.icon}</div>
+            <div class="chapter-number">Bab ${chapter.id}</div>
+            <div class="chapter-title">${chapter.title}</div>
+            <div class="chapter-subtitle">${chapter.subtitle}</div>
+          </div>
+        `).join('');
+
+        // Add click listeners to chapter cards
+        elements.chaptersContainer.querySelectorAll('.chapter-card').forEach(card => {
+          card.addEventListener('click', () => {
+            const chapterId = parseInt(card.dataset.chapter);
+            this.openChapter(chapterId);
+          });
+        });
+      }
+
+      openChapter(chapterId) {
+        currentState.currentChapter = ContentManager.CHAPTERS.find(ch => ch.id === chapterId);
+        elements.submenuChapterTitle.textContent = 
+          `${currentState.currentChapter.title} - ${currentState.currentChapter.subtitle}`;
+        
+        this.renderSubmenu();
+        this.showView('submenu-view');
+      }
+
+      renderSubmenu() {
+        elements.submenuItems.innerHTML = ContentManager.SUBMENUS.map(submenu => `
+          <button class="submenu-item" data-section="${submenu.id}">
+            <div class="submenu-item-icon">${submenu.icon}</div>
+            <div>${submenu.title}</div>
+            <div style="font-size: 12px; opacity: 0.9; margin-top: 5px;">${submenu.subtitle}</div>
+          </button>
+        `).join('');
+
+        // Add click listeners to submenu items
+        elements.submenuItems.querySelectorAll('.submenu-item').forEach(item => {
+          item.addEventListener('click', () => {
+            const section = item.dataset.section;
+            this.openSection(section);
+          });
+        });
+      }
+
+      async openSection(section) {
+        currentState.currentSection = section;
+        const submenu = ContentManager.SUBMENUS.find(s => s.id === section);
+        elements.contentSectionTitle.textContent = 
+          `${submenu.title} - ${currentState.currentChapter.title}`;
+        
+        if (section === 'quiz') {
+          this.renderQuiz();
+        } else {
+          await this.renderContentArea(section);
+        }
+        
+        this.showView('content-view');
+      }
+
+      async renderContentArea(section) {
+        const isTeacher = LoginManager.getCurrentUser().role === LoginManager.USER_ROLES.TEACHER;
+        
+        try {
+          this.showLoading();
+          const contents = await ContentManager.getContents(
+            currentState.currentChapter.id, 
+            section
+          );
+
+          let uploadSection = '';
+          if (isTeacher) {
+            const acceptTypes = ContentManager.getAcceptTypes(section);
+            const uploadHint = ContentManager.getUploadHint(section);
+            
+            uploadSection = `
+              <div class="upload-form">
+                <div class="upload-area" id="upload-area-click">
+                  <div class="upload-icon">📤</div>
+                  <div class="upload-text">Klik untuk Upload File</div>
+                  <div class="upload-hint">${uploadHint}</div>
+                </div>
+                
+                <input type="file" id="file-input" class="file-input" 
+                       accept="${acceptTypes}" multiple>
+                
+                <div id="file-preview" style="display: none; margin-top: 15px; padding: 15px; background: #edf2f7; border-radius: 8px;">
+                  <div style="font-weight: 600; margin-bottom: 10px; color: #2d3748;">File yang dipilih:</div>
+                  <div id="file-list"></div>
+                </div>
+                
+                <div class="form-group" style="margin-top: 20px;">
+                  <label class="form-label" for="content-title">Judul Materi</label>
+                  <input type="text" id="content-title" class="form-input" placeholder="Masukkan judul materi" required>
+                </div>
+                
+                <div class="form-group">
+                  <label class="form-label" for="content-description">Deskripsi</label>
+                  <input type="text" id="content-description" class="form-input" placeholder="Masukkan deskripsi singkat">
+                </div>
+                
+                <button type="button" class="submit-btn" id="upload-submit-btn">Tambah Materi</button>
+              </div>
+            `;
+          }
+
+          const user = LoginManager.getCurrentUser();
+          const studentNotice = !isTeacher ? `
+            <div class="student-notice">
+              📌 ${user.studentName} (${user.studentId}) - Klik "Lihat" untuk membuka materi
+            </div>
+          ` : '';
+
+          elements.contentBody.innerHTML = `
+            ${studentNotice}
+            ${uploadSection}
+            <div class="content-list" id="content-list">
+              ${await this.renderContentList(contents, section)}
+            </div>
+          `;
+
+          if (isTeacher) {
+            this.setupFileUpload(section);
+          } else {
+            this.setupContentView();
+          }
+
+        } catch (error) {
+          console.error('Failed to render content area:', error);
+          this.showNotification('Gagal memuat konten', 'error');
+        } finally {
+          this.hideLoading();
+        }
+      }
+
+      async renderContentList(contents, section) {
+        if (contents.length === 0) {
+          const user = LoginManager.getCurrentUser();
+          if (user.role === LoginManager.USER_ROLES.TEACHER) {
+            return `
+              <div class="empty-state">
+                <div class="empty-icon">📭</div>
+                <div class="empty-text">Belum ada konten. Tambahkan materi di atas.</div>
+              </div>
+            `;
+          } else {
+            // Show sample content for students
+            const sampleContents = ContentManager.SAMPLE_FILES[section] || [];
+            if (sampleContents.length === 0) {
+              return `
+                <div class="empty-state">
+                  <div class="empty-icon">📭</div>
+                  <div class="empty-text">Belum ada materi yang tersedia.</div>
+                </div>
+              `;
+            }
+            
+            return sampleContents.map((file, index) => `
+              <div class="content-item" data-id="sample-${section}-${index}">
+                <div class="content-info">
+                  <div class="content-title">📚 Contoh Materi ${index + 1}</div>
+                  <div class="content-meta" style="margin-top: 8px;">
+                    <div style="display: inline-block; margin-right: 10px; padding: 5px 10px; background: white; border-radius: 6px; font-size: 12px;">
+                      ${ContentManager.getFileIcon(file.type)} ${file.name} (${file.size})
+                    </div>
+                  </div>
+                  <div class="content-meta" style="margin-top: 8px; font-style: italic; color: #4a5568;">
+                    Contoh materi untuk ${section}
+                  </div>
+                </div>
+                <div class="content-actions">
+                  <button class="view-btn" data-sample="${index}">Lihat</button>
+                </div>
+              </div>
+            `).join('');
+          }
+        }
+
+        const isTeacher = LoginManager.getCurrentUser().role === LoginManager.USER_ROLES.TEACHER;
+        
+        return contents.map(item => {
+          const fileDisplay = item.file_names && item.file_names.length > 0 ? 
+            item.file_names.map((fileName, idx) => {
+              const fileType = item.file_types ? item.file_types[idx] : '';
+              const fileSize = item.file_sizes ? item.file_sizes[idx] : '';
+              const fileIcon = ContentManager.getFileIcon(fileType);
+              return `
+                <div style="display: inline-block; margin-right: 10px; margin-bottom: 5px; padding: 5px 10px; background: white; border-radius: 6px; font-size: 12px;">
+                  ${fileIcon} ${fileName} ${fileSize ? '(' + fileSize + ')' : ''}
+                </div>
+              `;
+            }).join('') : '<span style="color: #a0aec0; font-size: 12px;">Tidak ada file</span>';
+
+          return `
+            <div class="content-item" data-id="${item.id}">
+              <div class="content-info">
+                <div class="content-title">📚 ${item.title}</div>
+                <div class="content-meta" style="margin-top: 8px;">${fileDisplay}</div>
+                <div class="content-meta" style="margin-top: 8px; font-style: italic; color: #4a5568;">
+                  ${item.description}
+                </div>
+                <div class="content-meta" style="margin-top: 5px; font-size: 12px; color: #a0aec0;">
+                  📅 ${new Date(item.created_at).toLocaleDateString('id-ID', { 
+                    day: 'numeric', 
+                    month: 'long', 
+                    year: 'numeric' 
+                  })}
+                </div>
+              </div>
+              <div class="content-actions">
+                ${isTeacher ? `
+                  <button class="delete-btn" data-id="${item.id}">Hapus</button>
+                ` : `
+                  <button class="view-btn" data-id="${item.id}">Lihat</button>
+                `}
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      setupFileUpload(section) {
+        const fileInput = document.getElementById('file-input');
+        const uploadArea = document.getElementById('upload-area-click');
+        const filePreview = document.getElementById('file-preview');
+        const fileList = document.getElementById('file-list');
+        const uploadBtn = document.getElementById('upload-submit-btn');
+
+        if (uploadArea) {
+          uploadArea.addEventListener('click', () => fileInput.click());
+        }
+
+        if (fileInput) {
+          fileInput.addEventListener('change', (e) => {
+            const files = e.target.files;
+            if (files.length > 0) {
+              filePreview.style.display = 'block';
+              fileList.innerHTML = '';
+              
+              Array.from(files).forEach(file => {
+                const fileSize = ContentManager.formatFileSize(file.size);
+                const fileIcon = ContentManager.getFileIcon(file.type);
+                
+                const fileItem = document.createElement('div');
+                fileItem.style.cssText = 'padding: 10px; background: white; border-radius: 6px; margin-bottom: 8px; display: flex; align-items: center; gap: 10px;';
+                fileItem.innerHTML = `
+                  <span style="font-size: 24px;">${fileIcon}</span>
+                  <div style="flex: 1;">
+                    <div style="font-weight: 600; color: #2d3748; font-size: 14px;">${file.name}</div>
+                    <div style="font-size: 12px; color: #718096;">${fileSize}</div>
+                  </div>
+                `;
+                fileList.appendChild(fileItem);
+              });
+            }
+          });
+        }
+
+        if (uploadBtn) {
+          uploadBtn.addEventListener('click', async () => {
+            await this.uploadContent(section);
+          });
+        }
+      }
+
+      async uploadContent(section) {
+        const titleInput = document.getElementById('content-title');
+        const descriptionInput = document.getElementById('content-description');
+        const fileInput = document.getElementById('file-input');
+
+        if (!titleInput || !titleInput.value.trim()) {
+          this.showNotification('Silakan masukkan judul materi.', 'error');
+          return;
+        }
+
+        try {
+          this.showLoading();
+          
+          const files = fileInput ? Array.from(fileInput.files) : [];
+          const fileNames = files.map(f => f.name);
+          const fileTypes = files.map(f => f.type);
+          const fileSizes = files.map(f => ContentManager.formatFileSize(f.size));
+          
+          // In a real app, you would upload files to storage and get URLs
+          // For demo, we'll use sample data based on file types
+          const fileContents = files.map(file => {
+            const ext = file.name.split('.').pop().toLowerCase();
+            if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) return 'IMAGE';
+            if (['mp4', 'avi', 'mov'].includes(ext)) return 'VIDEO';
+            if (['mp3', 'wav', 'ogg'].includes(ext)) return 'AUDIO';
+            if (ext === 'pdf') return 'PDF';
+            return 'TEXT';
+          });
+
+          const fileDatas = files.map((file, index) => {
+            // Sample data for demo - in real app, this would be actual file content/URLs
+            switch (fileContents[index]) {
+              case 'IMAGE':
+                return 'https://images.unsplash.com/photo-1517697471339-4aa32003c11a?w=600&h=400&fit=crop';
+              case 'VIDEO':
+                return 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
+              case 'AUDIO':
+                return 'https://www.soundjay.com/button/beep-07.wav';
+              case 'PDF':
+                return `PDF Content: ${file.name}\n\nIni adalah contoh konten PDF untuk ${titleInput.value}`;
+              default:
+                return `Text Content: ${file.name}\n\nIni adalah contoh konten teks untuk ${titleInput.value}`;
+            }
+          });
+
+          const contentData = {
+            chapter_id: currentState.currentChapter.id,
+            section: section,
+            title: titleInput.value.trim(),
+            description: descriptionInput.value.trim() || 'Tidak ada deskripsi',
+            file_names: fileNames,
+            file_types: fileTypes,
+            file_sizes: fileSizes,
+            file_contents: fileContents,
+            file_datas: fileDatas,
+            file_count: files.length
+          };
+
+          await ContentManager.createContent(contentData);
+          
+          this.showNotification('Materi berhasil ditambahkan!', 'success');
+          titleInput.value = '';
+          descriptionInput.value = '';
+          if (fileInput) fileInput.value = '';
+          
+          const filePreview = document.getElementById('file-preview');
+          if (filePreview) filePreview.style.display = 'none';
+          
+          // Refresh content list
+          await this.renderContentArea(section);
+          
+        } catch (error) {
+          console.error('Upload failed:', error);
+          this.showNotification('Gagal menambahkan materi: ' + error.message, 'error');
+        } finally {
+          this.hideLoading();
+        }
+      }
+
+      setupContentView() {
+        const contentList = document.getElementById('content-list');
+        if (!contentList) return;
+
+        contentList.querySelectorAll('.view-btn').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            const itemId = e.target.dataset.id;
+            const sampleIndex = e.target.dataset.sample;
+            
+            if (sampleIndex !== undefined) {
+              this.viewSampleContent(parseInt(sampleIndex));
+            } else {
+              this.viewContent(itemId);
+            }
+          });
+        });
+
+        contentList.querySelectorAll('.delete-btn').forEach(btn => {
+          btn.addEventListener('click', async (e) => {
+            const itemId = e.target.dataset.id;
+            if (confirm('Apakah Anda yakin ingin menghapus materi ini?')) {
+              await this.deleteContent(itemId);
+            }
+          });
+        });
+      }
+
+      async viewContent(contentId) {
+        try {
+          this.showLoading();
+          const content = await ContentManager.getContents();
+          const item = content.find(c => c.id == contentId);
+          
+          if (!item) {
+            throw new Error('Konten tidak ditemukan');
+          }
+          
+          this.renderContentView(item);
+        } catch (error) {
+          console.error('Failed to view content:', error);
+          this.showNotification('Gagal memuat konten', 'error');
+        } finally {
+          this.hideLoading();
+        }
+      }
+
+      viewSampleContent(sampleIndex) {
+        const section = currentState.currentSection;
+        const sampleFiles = ContentManager.SAMPLE_FILES[section] || [];
+        const file = sampleFiles[sampleIndex];
+        
+        if (!file) {
+          this.showNotification('Contoh file tidak ditemukan', 'error');
+          return;
+        }
+
+        const sampleItem = {
+          title: `Contoh Materi ${sampleIndex + 1}`,
+          description: 'Ini adalah contoh materi untuk ' + section,
+          file_names: [file.name],
+          file_types: [file.type],
+          file_sizes: [file.size],
+          file_contents: [file.content],
+          file_datas: [file.data],
+          file_count: 1
+        };
+
+        this.renderContentView(sampleItem);
+      }
+
+      renderContentView(item) {
+        let fileTabs = '';
+        let fileViewers = '';
+
+        if (item.file_names && item.file_names.length > 0) {
+          fileTabs = item.file_names.map((fileName, idx) => {
+            const fileIcon = ContentManager.getFileIcon(item.file_types ? item.file_types[idx] : '');
+            return `
+              <button class="file-tab ${idx === 0 ? 'active' : ''}" data-index="${idx}">
+                ${fileIcon} ${fileName}
+              </button>
+            `;
+          }).join('');
+
+          fileViewers = item.file_names.map((fileName, idx) => {
+            const fileContent = item.file_contents ? item.file_contents[idx] : '';
+            const fileData = item.file_datas ? item.file_datas[idx] : '';
+            
+            let viewerContent = '';
+            
+            switch(fileContent) {
+              case 'PDF':
+                viewerContent = `
+                  <div class="pdf-viewer">
+                    <div style="padding: 20px; text-align: center;">
+                      <div class="file-preview-icon">📄</div>
+                      <div class="file-preview-text">
+                        <h3>Preview PDF: ${fileName}</h3>
+                        <p>Berikut adalah konten PDF:</p>
+                        <div class="text-content">${fileData}</div>
+                      </div>
+                    </div>
+                  </div>
+                `;
+                break;
+                
+              case 'IMAGE':
+                viewerContent = `
+                  <div style="text-align: center;">
+                    <img src="${fileData}" alt="${fileName}" class="image-viewer" 
+                         onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                    <div style="display: none; padding: 20px; text-align: center;">
+                      <div class="file-preview-icon">🖼️</div>
+                      <div class="file-preview-text">
+                        <h3>Gambar: ${fileName}</h3>
+                        <p>Preview gambar tidak tersedia. File dapat diunduh untuk dilihat.</p>
+                      </div>
+                    </div>
+                    <p style="margin-top: 10px; color: #718096;">Gambar: ${fileName}</p>
+                  </div>
+                `;
+                break;
+                
+              case 'AUDIO':
+                viewerContent = `
+                  <div style="text-align: center;">
+                    <div class="file-preview-icon">🎵</div>
+                    <div class="file-preview-text">
+                      <h3>Audio: ${fileName}</h3>
+                      <audio controls class="audio-player">
+                        <source src="${fileData}" type="audio/mpeg">
+                        Browser Anda tidak mendukung pemutar audio.
+                      </audio>
+                    </div>
+                  </div>
+                `;
+                break;
+                
+              case 'VIDEO':
+                viewerContent = `
+                  <div style="text-align: center;">
+                    <video controls class="video-player">
+                      <source src="${fileData}" type="video/mp4">
+                      Browser Anda tidak mendukung pemutar video.
+                    </video>
+                    <p style="margin-top: 10px; color: #718096;">Video: ${fileName}</p>
+                  </div>
+                `;
+                break;
+                
+              case 'TEXT':
+              default:
+                viewerContent = `
+                  <div class="text-content">${fileData}</div>
+                `;
+            }
+            
+            return `
+              <div class="file-preview-content" data-index="${idx}" style="${idx === 0 ? '' : 'display: none;'}">
+                ${viewerContent}
+              </div>
+            `;
+          }).join('');
+        } else {
+          fileViewers = `
+            <div class="file-preview-container">
+              <div class="file-preview-content">
+                <div class="file-preview-icon">📭</div>
+                <div class="file-preview-text">Tidak ada file yang tersedia untuk materi ini.</div>
+              </div>
+            </div>
+          `;
+        }
+
+        elements.contentBody.innerHTML = `
+          <div class="student-notice">
+            📖 Anda sedang melihat: <strong>${item.title}</strong>
+          </div>
+          <div style="background: #f7fafc; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+            <div style="font-weight: 600; color: #2d3748; margin-bottom: 10px;">Deskripsi Materi:</div>
+            <div style="color: #4a5568;">${item.description}</div>
+          </div>
+          
+          ${fileTabs ? `
+            <div class="file-preview-container">
+              <div class="file-tabs" id="file-tabs">
+                ${fileTabs}
+              </div>
+              <div id="file-viewers">
+                ${fileViewers}
+              </div>
+            </div>
+          ` : fileViewers}
+          
+          <div style="margin-top: 20px; text-align: center;">
+            <button class="back-btn" onclick="app.renderContentArea('${currentState.currentSection}')">
+              ← Kembali ke Daftar Materi
+            </button>
+          </div>
+        `;
+
+        // Add tab switching functionality
+        if (fileTabs) {
+          const tabs = elements.contentBody.querySelectorAll('.file-tab');
+          const viewers = elements.contentBody.querySelectorAll('.file-preview-content');
+          
+          tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+              const index = parseInt(tab.dataset.index);
+              
+              // Update active tab
+              tabs.forEach(t => t.classList.remove('active'));
+              tab.classList.add('active');
+              
+              // Show corresponding viewer
+              viewers.forEach(viewer => {
+                viewer.style.display = 'none';
+              });
+              viewers[index].style.display = 'block';
+            });
+          });
+        }
+      }
+
+      async deleteContent(contentId) {
+        try {
+          this.showLoading();
+          await ContentManager.deleteContent(contentId);
+          this.showNotification('Materi berhasil dihapus!', 'success');
+          await this.renderContentArea(currentState.currentSection);
+        } catch (error) {
+          console.error('Delete failed:', error);
+          this.showNotification('Gagal menghapus materi: ' + error.message, 'error');
+        } finally {
+          this.hideLoading();
+        }
+      }
+
+      renderQuiz() {
+        const questions = QuizManager.getQuizQuestions(currentState.currentChapter.id);
+        let currentQuestionIndex = 0;
+        let userAnswers = Array(questions.length).fill(undefined);
+        let quizSubmitted = false;
+
+        const renderQuestion = () => {
+          if (currentQuestionIndex >= questions.length) {
+            if (!quizSubmitted) {
+              showQuizResults();
+            } else {
+              showQuizReview();
+            }
+            return;
+          }
+
+          const question = questions[currentQuestionIndex];
+          const isReviewMode = quizSubmitted;
+          
+          elements.contentBody.innerHTML = `
+            <div class="quiz-container">
+              <div class="quiz-question">
+                <div class="question-number">
+                  Soal ${currentQuestionIndex + 1} dari ${questions.length}
+                </div>
+                <div class="question-text">${question.question}</div>
+                <div class="quiz-options">
+                  ${question.options.map((option, index) => {
+                    let optionClass = 'quiz-option';
+                    let indicator = '';
+                    
+                    if (isReviewMode) {
+                      optionClass += ' disabled';
+                      if (index === question.correct) {
+                        optionClass += ' correct';
+                        indicator = '<span class="answer-indicator">✓</span>';
+                      }
+                      if (userAnswers[currentQuestionIndex] === index && index !== question.correct) {
+                        optionClass += ' incorrect';
+                        indicator = '<span class="answer-indicator">✗</span>';
+                      }
+                    } else if (userAnswers[currentQuestionIndex] === index) {
+                      optionClass += ' selected';
+                    }
+                    
+                    return `
+                      <div class="${optionClass}" data-index="${index}">
+                        ${String.fromCharCode(65 + index)}. ${option}${indicator}
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+              <div class="quiz-nav">
+                <button class="quiz-btn" id="prev-btn" 
+                        ${currentQuestionIndex === 0 ? 'disabled' : ''}>
+                  ← Sebelumnya
+                </button>
+                <button class="quiz-btn" id="next-btn" 
+                        ${!isReviewMode && userAnswers[currentQuestionIndex] === undefined ? 'disabled' : ''}>
+                  ${currentQuestionIndex === questions.length - 1 && !isReviewMode ? 'Selesai' : 'Selanjutnya →'}
+                </button>
+              </div>
+            </div>
+          `;
+
+          if (!isReviewMode) {
+            elements.contentBody.querySelectorAll('.quiz-option').forEach(option => {
+              option.addEventListener('click', () => {
+                elements.contentBody.querySelectorAll('.quiz-option').forEach(opt => {
+                  opt.classList.remove('selected');
+                });
+                option.classList.add('selected');
+                userAnswers[currentQuestionIndex] = parseInt(option.dataset.index);
+                document.getElementById('next-btn').disabled = false;
+              });
+            });
+          }
+
+          document.getElementById('prev-btn').addEventListener('click', () => {
+            currentQuestionIndex--;
+            renderQuestion();
+          });
+
+          document.getElementById('next-btn').addEventListener('click', () => {
+            currentQuestionIndex++;
+            renderQuestion();
+          });
+        };
+
+        const showQuizResults = async () => {
+          const score = QuizManager.calculateScore(userAnswers, questions);
+          const percentage = Math.round((score / questions.length) * 100);
+          const feedback = QuizManager.getPerformanceFeedback(percentage);
+
+          try {
+            const user = LoginManager.getCurrentUser();
+            if (user.role === LoginManager.USER_ROLES.STUDENT) {
+              await QuizManager.submitQuizResult(
+                currentState.currentChapter.id,
+                score,
+                questions.length,
+                userAnswers
+              );
+            }
+          } catch (error) {
+            console.error('Failed to save quiz result:', error);
+          }
+
+          elements.contentBody.innerHTML = `
+            <div class="quiz-result">
+              <div class="result-score" style="color: ${feedback.color}">${percentage}%</div>
+              <div class="result-text" style="color: ${feedback.color}">${feedback.text}</div>
+              <div class="result-text">
+                Anda menjawab ${score} dari ${questions.length} soal dengan benar!
+              </div>
+              <div style="display: flex; gap: 15px; justify-content: center; margin-top: 20px; flex-wrap: wrap;">
+                <button class="quiz-btn" id="review-btn">📝 Lihat Pembahasan</button>
+                <button class="quiz-btn" id="retry-btn">🔄 Coba Lagi</button>
+              </div>
+            </div>
+          `;
+
+          document.getElementById('review-btn').addEventListener('click', () => {
+            quizSubmitted = true;
+            currentQuestionIndex = 0;
+            renderQuestion();
+          });
+
+          document.getElementById('retry-btn').addEventListener('click', () => {
+            currentQuestionIndex = 0;
+            userAnswers = Array(questions.length).fill(undefined);
+            quizSubmitted = false;
+            renderQuestion();
+          });
+        };
+
+        const showQuizReview = () => {
+          elements.contentBody.innerHTML = `
+            <div class="quiz-result">
+              <div class="result-text" style="font-size: 18px; margin-bottom: 20px;">
+                Pembahasan Soal - ${currentState.currentChapter.title}
+              </div>
+              <div style="text-align: left; max-width: 600px; margin: 0 auto;">
+                ${questions.map((question, index) => {
+                  const userAnswer = userAnswers[index];
+                  const isCorrect = userAnswer === question.correct;
+                  return `
+                    <div style="background: #f7fafc; padding: 20px; border-radius: 10px; margin-bottom: 15px; 
+                                border-left: 4px solid ${isCorrect ? '#48bb78' : '#f56565'};">
+                      <div style="font-weight: 600; margin-bottom: 10px;">
+                        Soal ${index + 1}: ${question.question}
+                      </div>
+                      <div style="margin-bottom: 5px;">
+                        Jawaban Anda: 
+                        <strong>
+                          ${userAnswer !== undefined ? 
+                            String.fromCharCode(65 + userAnswer) + '. ' + question.options[userAnswer] : 
+                            'Tidak dijawab'
+                          }
+                        </strong> 
+                        ${isCorrect ? '✓' : '✗'}
+                      </div>
+                      ${!isCorrect ? `
+                        <div style="color: #48bb78;">
+                          Jawaban Benar: 
+                          <strong>
+                            ${String.fromCharCode(65 + question.correct)}. ${question.options[question.correct]}
+                          </strong>
+                        </div>
+                      ` : ''}
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+              <button class="quiz-btn" id="back-to-result" style="margin-top: 20px;">
+                Kembali ke Hasil
+              </button>
+            </div>
+          `;
+
+          document.getElementById('back-to-result').addEventListener('click', () => {
+            quizSubmitted = false;
+            currentQuestionIndex = questions.length;
+            renderQuestion();
+          });
+        };
+
+        renderQuestion();
+      }
+
+      showView(viewName) {
+        // Hide all views
+        elements.mainMenu.style.display = 'none';
+        elements.submenuView.classList.remove('active');
+        elements.contentView.classList.remove('active');
+        
+        // Show selected view
+        if (viewName === 'main-menu') {
+          elements.mainMenu.style.display = 'block';
+        } else {
+          elements.mainMenu.style.display = 'none';
+          document.getElementById(viewName).classList.add('active');
+        }
+      }
+
+      showMainMenu() {
+        currentState.currentChapter = null;
+        currentState.currentSection = null;
+        this.showView('main-menu');
+      }
+
+      showSubmenu() {
+        this.showView('submenu-view');
+      }
+
+      showLoading() {
+        elements.loadingSpinner.style.display = 'block';
+      }
+
+      hideLoading() {
+        elements.loadingSpinner.style.display = 'none';
+      }
+
+      showNotification(message, type = 'info') {
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.className = type === 'error' ? 'error-message' : 'success-message';
+        notification.textContent = message;
+        notification.style.cssText = `
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          z-index: 1000;
+          max-width: 300px;
+          animation: slideIn 0.3s ease;
+        `;
+
+        document.body.appendChild(notification);
+
+        // Remove after 3 seconds
+        setTimeout(() => {
+          notification.style.animation = 'slideOut 0.3s ease';
+          setTimeout(() => {
+            if (notification.parentNode) {
+              notification.parentNode.removeChild(notification);
+            }
+          }, 300);
+        }, 3000);
+      }
+
+      showError(elementId, message) {
+        const element = document.getElementById(elementId);
+        if (element) {
+          element.innerHTML = `<div class="error-message">${message}</div>`;
+        }
+      }
+
+      clearError(elementId) {
+        const element = document.getElementById(elementId);
+        if (element) {
+          element.innerHTML = '';
+        }
+      }
+
+      clearAllErrors() {
+        this.clearError('student-login-error');
+        this.clearError('teacher-login-error');
+      }
+    }
+
+    // Add CSS animations for notifications
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+      }
+      @keyframes slideOut {
+        from { transform: translateX(0); opacity: 1; }
+        to { transform: translateX(100%); opacity: 0; }
+      }
+    `;
+    document.head.appendChild(style);
+
+    // Initialize the application
+    const app = new ArabicLearningApp();
+    window.app = app; // Make app globally available for callbacks
+
+    console.log('🕌 Arabic Learning Platform initialized');
+  </script>
+</body>
+</html>
